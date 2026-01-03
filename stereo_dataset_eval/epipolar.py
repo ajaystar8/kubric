@@ -49,6 +49,7 @@ def sift_rectification_validation(img_left, img_right,
     pts2 = np.float32(pts2)
 
     # Estimate Fundamental Matrix with RANSAC
+    # F -> basically transforms points in image1 to epipolar lines in image2
     F, mask = cv2.findFundamentalMat(
         pts1, pts2,
         method=cv2.FM_RANSAC,
@@ -68,17 +69,17 @@ def sift_rectification_validation(img_left, img_right,
         return
 
     # Compute epipolar lines in right image for left points
-    lines2 = cv2.computeCorrespondEpilines(
-        inliers1.reshape(-1, 1, 2), 1, F
-    )
+    lines2 = cv2.computeCorrespondEpilines(inliers1.reshape(-1, 1, 2), 1, F)
     lines2 = lines2.reshape(-1, 3)
 
     # Point-to-line distance
+    # Calculate the vertical distance from each point in image2 to its corresponding epipolar line (calculated using points from image1)
     epipolar_errors = []
     for (x2, y2), (a, b, c) in zip(inliers2, lines2):
         dist = abs(a * x2 + b * y2 + c) / np.sqrt(a * a + b * b)
         epipolar_errors.append(dist)
 
+    # Should be small for well-rectified images
     epipolar_errors = np.array(epipolar_errors)
 
     mean_err = np.mean(epipolar_errors)
@@ -107,9 +108,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.stereo_type != "lookat_orbit":
-        sequence_dir = Path(f"/Users/ajay/Documents/Visual-Intelligence-Lab/MathWorks_Project/data_generation/kubric/output/movi_e/{args.stereo_type}/{args.seq_name}")
+        sequence_dir = Path(f"/Users/ajay/Documents/Visual-Intelligence-Lab/MathWorks_Project/kubric/generation/stereo_datasets/movi_e/{args.stereo_type}/{args.seq_name}")
     else:
-        sequence_dir = Path(f"/Users/ajay/Documents/Visual-Intelligence-Lab/MathWorks_Project/data_generation/kubric/output/movi_e/{args.stereo_type}/{args.camera_movement}/{args.seq_name}")
+        sequence_dir = Path(f"/Users/ajay/Documents/Visual-Intelligence-Lab/MathWorks_Project/kubric/generation/stereo_datasets/movi_e/{args.stereo_type}/{args.camera_movement}/{args.seq_name}")
 
     left_images = sorted((sequence_dir / "left_camera" / "rgba").glob("rgba_*.png"))
     right_images = sorted((sequence_dir / "right_camera" / "rgba").glob("rgba_*.png"))
