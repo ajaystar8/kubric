@@ -102,10 +102,18 @@ def sift_rectification_validation(img_left, img_right,
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="SIFT-based Epipolar Geometry Validation for Stereo Rectification")
-    parser.add_argument("--seq_name", type=str, required=True, help="Sequence name/number")
-    parser.add_argument("--stereo_type", type=str, required=True, choices=["pure_translation", "lookat_orbit"], help="Type of stereo setup")
+    parser.add_argument("--seq_name", type=str, help="Sequence name/number")
+    parser.add_argument("--stereo_type", type=str, choices=["pure_translation", "lookat_orbit"], help="Type of stereo setup")
     parser.add_argument("--camera_movement", type=str, default="", choices=["linear_movement", "linear_movement_linear_lookat"], help="Camera movement type (only for lookat_orbit)")
+    parser.add_argument("-l", "--left_image", type=str, help="Path to left image")
+    parser.add_argument("-r", "--right_image", type=str, help="Path to right image")
     args = parser.parse_args()
+
+    if args.left_image and args.right_image:
+        left_img = load_image(args.left_image)
+        right_img = load_image(args.right_image)
+        sift_rectification_validation(left_img, right_img)
+        exit(0)
 
     if args.stereo_type != "lookat_orbit":
         sequence_dir = Path(f"/Users/ajay/Documents/Visual-Intelligence-Lab/MathWorks_Project/kubric/generation/stereo_datasets/movi_e/{args.stereo_type}/{args.seq_name}")
