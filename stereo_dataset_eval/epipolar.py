@@ -82,6 +82,18 @@ def sift_rectification_validation(img_left, img_right,
     # Should be small for well-rectified images
     epipolar_errors = np.array(epipolar_errors)
 
+    dy = inliers1[:,1] - inliers2[:,1]
+    abs_dy = np.abs(dy)
+
+    mean_vertical_error = np.mean(abs_dy)
+    std_vertical_error  = np.std(abs_dy)
+    p95_vertical_error  = np.percentile(abs_dy, 95)
+
+    print(f"Mean |yL - yR|: {mean_vertical_error:.4f} px")
+    print(f"Std:           {std_vertical_error:.4f} px")
+    print(f"95th perc:     {p95_vertical_error:.4f} px")
+
+
     mean_err = np.mean(epipolar_errors)
     std_err  = np.std(epipolar_errors)
     p95      = np.percentile(epipolar_errors, 95)
@@ -92,9 +104,9 @@ def sift_rectification_validation(img_left, img_right,
     print(f"95th percentile: {p95:.4f} px")
 
     # Proper rectification quality thresholds
-    if mean_err < 0.3 and p95 < 1.0:
+    if mean_vertical_error < 0.3 and p95_vertical_error < 1.0:
         print("Status: EXCELLENT RECTIFICATION")
-    elif mean_err < 0.6 and p95 < 2.0:
+    elif mean_vertical_error < 0.6 and p95_vertical_error < 2.0:
         print("Status: GOOD RECTIFICATION")
     else:
         print("Status: POOR RECTIFICATION")
