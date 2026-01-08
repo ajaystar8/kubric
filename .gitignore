@@ -17,3 +17,7 @@ examples/KuBasic/Cone/*
 Dockerfile
 output_tmp/*
 generation/
+*scratch*
+archives
+*.ipynb
+stereo_dataset_eval/foundation_models/
