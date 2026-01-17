@@ -29,6 +29,9 @@ parser.add_argument("--background", choices=["clevr", "colored"], default="clevr
 
 # Configuration for the camera
 parser.add_argument("--camera", choices=["clevr", "random"], default="clevr")
+parser.add_argument("--focal_length", type=float, default=35.0)
+parser.add_argument("--sensor_width", type=float, default=32.0)
+parser.add_argument("--baseline", type=float, default=0.54)
 
 # Configuration for the source of the assets
 parser.add_argument("--kubasic_assets", type=str, default="gs://kubric-public/assets/KuBasic/KuBasic.json")
@@ -67,7 +70,10 @@ scene.ambient_illumination = kb.Color(0.05, 0.05, 0.05)
 
 # Camera
 logging.info("Setting up the Camera...")
-left_cam, right_cam = create_rectified_stereo_pair(position=[5, 0, 3])
+left_cam, right_cam = create_rectified_stereo_pair(position=[5, 0, 3], 
+                                                   focal_length=FLAGS.focal_length, 
+                                                   baseline=FLAGS.baseline, 
+                                                   sensor_width=FLAGS.sensor_width)
 scene.add([left_cam, right_cam])
 
 # Add random objects
@@ -163,7 +169,19 @@ for camera in [left_cam, right_cam]:
   # Save to image files
   camera_output_dir = output_dir / camera.name
   camera_output_dir.mkdir(parents=True, exist_ok=True)
-  kb.write_image_dict(data_stack, camera_output_dir)
+  kb.write_image_dict(data_stack, camera_output_dir,
+                      file_templates={
+                          "rgb": "rgb/rgb_{:05d}.png",
+                          "rgba": "rgba/rgba_{:05d}.png",
+                          "depth": "depth/depth_{:05d}.tiff",
+                          "uv": "uv/uv_{:05d}.png",
+                          "normal": "normal/normal_{:05d}.png",
+                          "flow": "flow/flow_{:05d}.png",
+                          "forward_flow": "forward_flow/forward_flow_{:05d}.png",
+                          "backward_flow": "backward_flow/backward_flow_{:05d}.png",
+                          "segmentation": "segmentation/segmentation_{:05d}.png",
+                          "object_coordinates": "object_coordinates/object_coordinates_{:05d}.png",
+                      })
   kb.post_processing.compute_bboxes(data_stack["segmentation"],
                                     visible_foreground_assets)
 

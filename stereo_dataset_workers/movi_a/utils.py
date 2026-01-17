@@ -10,6 +10,7 @@ def create_rectified_stereo_pair(
         front=[0, 0, -1], # -Z front
         baseline=0.54,
         focal_length=35.0,
+        sensor_width=32.0,
 ):
     world_up = np.array([0, 0, 1], dtype=float) # +Z
     world_right = np.array([1, 0, 0], dtype=float) # +X
@@ -45,7 +46,6 @@ def create_rectified_stereo_pair(
     
     quat = tuple(pyquat.Quaternion(matrix=(rot_mat1.T @ rot_mat2)))
 
-    print(f"Look at right = {look_at_right}")
     left_pos = position - baseline * 0.5 * look_at_right
     right_pos = position + baseline * 0.5 * look_at_right
 
@@ -54,6 +54,7 @@ def create_rectified_stereo_pair(
         position=left_pos.tolist(),
         quaternion=quat,
         focal_length=focal_length,
+        sensor_width=sensor_width,
     )
 
     right_cam = kb.PerspectiveCamera(
@@ -61,6 +62,7 @@ def create_rectified_stereo_pair(
         position=right_pos.tolist(),
         quaternion=quat,
         focal_length=focal_length,
+        sensor_width=sensor_width,
     )
 
     print("Left camera position:", left_cam.position)
