@@ -7,26 +7,30 @@ set -e # exit on error
 baseline=0.54  # meters
 focal_length=35.0  # mm
 sensor_width=32.0  # mm
-stereo_type="lookat_orbit" # ("pure_translation" or "lookat_orbit")
+stereo_type="pure_translation" # ("pure_translation" or "lookat_orbit")
+min_camera_movement=3.0 # minimum camera movement in meters over the whole sequence
 max_camera_movement=8.0   # maximum camera movement in meters over the whole sequence
 
-camera_movement="linear_movement_linear_lookat" # ("linear_movement" or "linear_movement_linear_lookat") - valid only for "lookat_orbit" stereo type
+camera_movement="linear_movement" # ("linear_movement" or "linear_movement_linear_lookat") - valid only for "lookat_orbit" stereo type
 
 # Scene Parameters
 min_num_static_objects=10
-max_num_static_objects=20
-min_num_dynamic_objects=1
-max_num_dynamic_objects=3
+max_num_static_objects=15
+min_num_dynamic_objects=3
+max_num_dynamic_objects=5
 
 # Video Generation Parameters
+video_duration=10 # in seconds
 frame_rate=12  # frames per second
-frame_end=24  # total number of frames
+
+frame_end=$((frame_rate * video_duration))  # total number of frames
+echo "Generating videos of length ${video_duration}s @ ${frame_rate} FPS..."
 
 # Rendering Parameters
 resolution=512x512 # (512x512 or 256x256) (can be something else, but these are the tested ones)
 
 # General Settings
-num_sequences=1 # total number of sequences to generate
+num_sequences=10 # total number of sequences to generate
 
 ##################################################################
 
@@ -57,7 +61,13 @@ do
 
     if [ "${stereo_type}" == "pure_translation" ]; then
          docker run --rm --interactive \
+            --gpus all \
+            --env KUBRIC_USE_GPU=1 \
             --user $(id -u):$(id -g)    \
+            -e TMPDIR=/mnt/Data/rajendra/tmp \
+            -e TEMP=/mnt/Data/rajendra/tmp \
+            -e TMP=/mnt/Data/rajendra/tmp \
+            --volume /mnt/Data/rajendra:/mnt/Data/rajendra \
             --volume "$(pwd):/kubric"   \
             kubricdockerhub/kubruntu    \
             /usr/bin/python3 stereo_dataset_workers/movi_e/pure_translation.py \
@@ -65,6 +75,7 @@ do
             --max_num_static_objects=${max_num_static_objects} \
             --min_num_dynamic_objects=${min_num_dynamic_objects} \
             --max_num_dynamic_objects=${max_num_dynamic_objects} \
+            --min_camera_movement=${min_camera_movement} \
             --max_camera_movement=${max_camera_movement} \
             --frame_end=${frame_end} \
             --frame_rate=${frame_rate} \
@@ -73,9 +84,12 @@ do
             --baseline=${baseline} \
             --job-dir ${out_dir} \
             --resolution=${resolution} \
-            --save_state
+            --save_state \
+            --scratch_dir "/mnt/Data/rajendra/tmp"
     else
           docker run --rm --interactive \
+            --gpus all \
+            --env KUBRIC_USE_GPU=1 \
             --user $(id -u):$(id -g)    \
             --volume "$(pwd):/kubric"   \
             kubricdockerhub/kubruntu    \
@@ -85,6 +99,7 @@ do
             --min_num_dynamic_objects=${min_num_dynamic_objects} \
             --max_num_dynamic_objects=${max_num_dynamic_objects} \
             --camera=${camera_movement} \
+            --min_camera_movement=${min_camera_movement} \
             --max_camera_movement=${max_camera_movement} \
             --frame_end=${frame_end} \
             --frame_rate=${frame_rate} \
@@ -93,7 +108,8 @@ do
             --baseline=${baseline} \
             --job-dir ${out_dir} \
             --resolution=${resolution} \
-            --save_state
+            --save_state \
+            --scratch_dir "/mnt/Data/rajendra/tmp/"
     fi
    
 done

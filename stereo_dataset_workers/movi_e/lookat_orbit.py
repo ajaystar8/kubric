@@ -27,6 +27,29 @@ import numpy as np
 
 from utils import create_rectified_stereo_pair, get_stereo_camera_pose
 
+import os
+os.environ["KUBRIC_USE_GPU"] = "1"
+
+# Use Cycles
+bpy.context.scene.render.engine = 'CYCLES'
+
+# Enable GPU rendering
+bpy.context.scene.cycles.device = 'GPU'
+
+prefs = bpy.context.preferences.addons['cycles'].preferences
+
+# THIS is the missing line
+prefs.compute_device_type = 'CUDA'
+
+# Enable all devices
+for d in prefs.devices:
+    d.use = (d.type == 'CUDA')
+
+print("Compute device type:", prefs.compute_device_type)
+print("Enabled devices:")
+for d in prefs.devices:
+    print(" ", d.name, d.type, d.use)
+
 
 # --- Some configuration values
 # the region in which to place objects [(min), (max)]

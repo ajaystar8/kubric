@@ -26,6 +26,28 @@ from kubric.renderer import Blender
 import numpy as np
 
 from utils import create_rectified_stereo_pair, get_stereo_camera_pose, get_stereo_camera_positions
+import os
+os.environ["KUBRIC_USE_GPU"] = "1"
+
+# Use Cycles
+bpy.context.scene.render.engine = 'CYCLES'
+
+# Enable GPU rendering
+bpy.context.scene.cycles.device = 'GPU'
+
+prefs = bpy.context.preferences.addons['cycles'].preferences
+
+# THIS is the missing line
+prefs.compute_device_type = 'CUDA'
+
+# Enable all devices
+for d in prefs.devices:
+    d.use = (d.type == 'CUDA')
+
+print("Compute device type:", prefs.compute_device_type)
+print("Enabled devices:")
+for d in prefs.devices:
+    print(" ", d.name, d.type, d.use)
 
 
 # --- Some configuration values
@@ -54,6 +76,7 @@ parser.add_argument("--backgrounds_split", choices=["train", "test"],
                     default="train")
 
 # Camera configuration
+parser.add_argument('--min_camera_movement', type=float, default=0.0)
 parser.add_argument("--max_camera_movement", type=float, default=4.0)
 parser.add_argument("--max_motion_blur", type=float, default=0.0)
 parser.add_argument("--focal_length", type=float, default=35.0)
@@ -168,7 +191,7 @@ def get_linear_lookat_motion_start_end(
 
 # Camera
 logging.info("Setting up the Camera...")
-camera_start, camera_end = get_linear_camera_motion_start_end(movement_speed=rng.uniform(low=0., high=FLAGS.max_camera_movement))
+camera_start, camera_end = get_linear_camera_motion_start_end(movement_speed=rng.uniform(low=FLAGS.min_camera_movement, high=FLAGS.max_camera_movement))
 outs = create_rectified_stereo_pair(center_position=camera_start, 
                                     baseline=FLAGS.baseline, 
                                     target=[0, 0, 0], 

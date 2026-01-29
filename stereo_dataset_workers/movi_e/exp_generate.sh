@@ -33,9 +33,9 @@ num_sequences=1 # total number of sequences to generate
 # Begin sequence generation
 
 if [ "${stereo_type}" == "lookat_orbit" ]; then
-  root_out_dir=./generation/stereo_datasets/movi_e/${stereo_type}/${camera_movement} # root output directory
+  root_out_dir=./kubric_generated_data/stereo_datasets/movi_e/${stereo_type}/${camera_movement} # root output directory
 else
-  root_out_dir=./generation/stereo_datasets/movi_e/${stereo_type} # root output directory
+  root_out_dir=./kubric_generated_data/stereo_datasets/movi_e/${stereo_type} # root output directory
 fi
 mkdir -p ${root_out_dir}
 
