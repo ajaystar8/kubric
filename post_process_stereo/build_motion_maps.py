@@ -3,12 +3,13 @@ import os.path as osp
 import argparse
 from glob import glob
 from tqdm import tqdm
-from pathlib import Path
+import cv2
+import matplotlib.pyplot as plt
 import json
 
 import numpy as np
-from camera_utils import get_cam_params, compute_motion_map
-from io_utils import load_depth, load_optical_flow, save_motion_map, stitch_stereo_images_to_video
+from camera_utils import get_cam_params, compute_motion_map, refine_motion_map
+from io_utils import load_depth, load_optical_flow, load_segmentation_map, stitch_stereo_images_to_video, stitch_stereo_depth_to_video
 
 if __name__ == '__main__':
 
@@ -17,6 +18,8 @@ if __name__ == '__main__':
                         help='Path to the sequence directory containing frames and metadata.')
     parser.add_argument('--threshold', type=float, default=1,
                         help='Threshold for motion map computation.')
+    parser.add_argument('--refine', action='store_true',
+                        help='If set, refine motion maps using segmentation masks.')
     parser.add_argument('--stitch_video', action='store_true',
                         help='If set, also stitch the motion maps into a video after processing.')
     args = parser.parse_args()
@@ -27,9 +30,12 @@ if __name__ == '__main__':
         depth_dir = osp.join(args.seq_dir, camera, 'depth')
         fflow_dir = osp.join(args.seq_dir, camera, 'forward_flow')
         bflow_dir = osp.join(args.seq_dir, camera, 'backward_flow')
+        segmentation_dir = osp.join(args.seq_dir, camera, 'segmentation')
         
-        motion_map_dir = osp.join(args.seq_dir, camera, 'motion_map')
-        os.makedirs(motion_map_dir, exist_ok=True)
+        dynamic_masks_dir = osp.join(args.seq_dir, camera, "dynamic_masks")
+        dynamic_flows_dir = osp.join(args.seq_dir, camera, "dynamic_flows")
+        os.makedirs(dynamic_masks_dir, exist_ok=True)
+        os.makedirs(dynamic_flows_dir, exist_ok=True)
 
         data_ranges_path = osp.join(args.seq_dir, camera, 'data_ranges.json')
         left_metadata_path = osp.join(args.seq_dir, camera, f'metadata_{camera}.json')
@@ -44,6 +50,7 @@ if __name__ == '__main__':
         depth_paths = sorted(glob(osp.join(depth_dir, 'depth_*.tiff')))
         fflow_paths = sorted(glob(osp.join(fflow_dir, 'forward_flow_*.png')))
         bflow_paths = sorted(glob(osp.join(bflow_dir, 'backward_flow_*.png')))
+        segmentation_paths = sorted(glob(osp.join(segmentation_dir, '*.png')))
 
         # load the camera parameters for the left camera
         K, E = get_cam_params(left_metadata).values()
@@ -60,22 +67,61 @@ if __name__ == '__main__':
             fflow0 = load_optical_flow(fflow_paths[i], (fflow_min, fflow_max))
             bflow0 = load_optical_flow(bflow_paths[i+1], (bflow_min, bflow_max))
 
-            motion_map, _ = compute_motion_map(cam_params0, cam_params1, depth0, fflow0, args.threshold)
-            # motion_map = forward_backward_mask(fflow0, bflow0, args.threshold)
-            motion_map_path = osp.join(motion_map_dir, f"{i:05d}_motion_map.png")
-            save_motion_map(motion_map_path, motion_map)
+            dynamic_map, mag_dynamic_flow = compute_motion_map(cam_params0, cam_params1, depth0, fflow0, args.threshold)
+
+            # save plasma colormap of magnitude of dynamic flow
+            plt.imsave(osp.join(dynamic_flows_dir, f"dynamic_flow_{i:05d}.png"), mag_dynamic_flow)
+
+            if args.refine:
+                instance_map = load_segmentation_map(segmentation_paths[i])
+                dynamic_map = refine_motion_map(dynamic_map.astype(bool), instance_map)
+            
+            dynamic_mask_uint8 = (dynamic_map * 255).astype(np.uint8)
+            out_path = osp.join(dynamic_masks_dir, f"dynamic_mask_{i:05d}.png")
+            cv2.imwrite(out_path, dynamic_mask_uint8)
 
     print('Motion maps for both cameras saved successfully.')
 
     if args.stitch_video:
-        print('Stitching motion maps to video...')
-        output_video_path = osp.join(args.seq_dir, 'motion_map_video.mp4')
-        
-        left_motion_map_dir = sorted(list((Path(args.seq_dir)/'left_camera'/'motion_map').glob('*.png')))
-        right_motion_map_dir = sorted(list((Path(args.seq_dir)/'right_camera'/'motion_map').glob('*.png')))
+        print('Stitching stereo maps into videos...')
 
-        stitch_stereo_images_to_video(left_motion_map_dir, right_motion_map_dir, output_video_path, fps=12)
-        print(f'Motion map video saved to: {output_video_path}')
+        # stitch stereo videos
+        stitch_stereo_images_to_video(
+            sorted(glob(osp.join(args.seq_dir, "left_camera", "dynamic_masks", "*.png"))),
+            sorted(glob(osp.join(args.seq_dir, "right_camera", "dynamic_masks", "*.png"))),
+            osp.join(args.seq_dir, "dynamic_masks_stereo.mp4"),
+            fps=12
+        )
 
+        stitch_stereo_images_to_video(
+            sorted(glob(osp.join(args.seq_dir, "left_camera", "dynamic_flows", "*.png"))),
+            sorted(glob(osp.join(args.seq_dir, "right_camera", "dynamic_flows", "*.png"))),
+            osp.join(args.seq_dir, "dynamic_flows_stereo.mp4"),
+            fps=12
+        )
+
+        stitch_stereo_images_to_video(
+            sorted(glob(osp.join(args.seq_dir, "left_camera", "rgba", "*.png"))),
+            sorted(glob(osp.join(args.seq_dir, "right_camera", "rgba", "*.png"))),
+            osp.join(args.seq_dir, "rgba_stereo.mp4"),
+            fps=12
+        )
+
+        stitch_stereo_images_to_video(
+            sorted(glob(osp.join(args.seq_dir, "left_camera", "forward_flow", "*.png"))),
+            sorted(glob(osp.join(args.seq_dir, "right_camera", "forward_flow", "*.png"))),
+            osp.join(args.seq_dir, "forward_flow_stereo.mp4"),
+            fps=12
+        )
+
+        # stitch stereo videos
+        stitch_stereo_depth_to_video(
+            sorted(glob(osp.join(args.seq_dir, "left_camera", "depth", "*.tiff"))),
+            sorted(glob(osp.join(args.seq_dir, "right_camera", "depth", "*.tiff"))),
+            osp.join(args.seq_dir, "depth_maps_stereo.mp4"),
+            fps=12
+        )
+
+        print("Done!")
 
 
