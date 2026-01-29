@@ -28,7 +28,34 @@ def load_depth(filename: str) -> np.ndarray:
     img = imageio.imread(filename.read_bytes(), format="tiff")
     return img[:, :, :1] # (H, W)
 
+def load_segmentation_map(filename: str) -> np.ndarray:
+    """Load segmentation map from a PNG file.
+
+    Args:
+        path (str): Path to the segmentation map PNG file.
+    Returns:
+        np.ndarray: Loaded segmentation map as a numpy array of shape (H, W).
+    """
+    img = Image.open(filename)
+    return np.array(img)  # (H, W)
+
+def load_dynamic_mask(filename: str) -> np.ndarray:
+    """Load dynamic mask from a PNG file.
+
+    Args:
+        path (str): Path to the dynamic mask PNG file.  
+    Returns:
+        np.ndarray: Loaded dynamic mask as a numpy array of shape (H, W), values in [0, 1].
+    """
+    img = Image.open(filename).convert('L')
+    mask = np.array(img).astype(np.float32) / 255.0
+    return mask  # (H, W)
+
 def load_optical_flow(filename, rescale_range=None) -> np.ndarray:
+  """
+  Load optical flow from a PNG file.
+  Note: The flow is stored in (delta_y, delta_x) order in the PNG.
+  """
   png_reader = png.Reader(bytes=Path(filename).read_bytes())
   width, height, pngdata, info = png_reader.read()
   del png_reader
@@ -47,7 +74,7 @@ def load_optical_flow(filename, rescale_range=None) -> np.ndarray:
     minv, maxv = rescale_range
     pngdata = pngdata / 2**bitdepth * (maxv - minv) + minv
 
-  return pngdata.reshape((height, width, plane_count))[..., :2]
+  return pngdata.reshape((height, width, plane_count))[..., :2] # returns (delta_y, delta_x)
 
 def save_motion_map(path: str, motion_map: np.ndarray):
     """Save motion map to a PNG file.
@@ -105,6 +132,61 @@ def stitch_stereo_images_to_video(left_image_paths, right_image_paths, output_pa
         l_img = cv2.imread(str(l_path))
         r_img = cv2.imread(str(r_path))
         stereo_img = cv2.hconcat([l_img, r_img])
+        video.write(stereo_img)
+
+    video.release()
+
+def stitch_stereo_depth_to_video(
+    left_depth_paths,
+    right_depth_paths,
+    output_path,
+    fps,
+    percentile=(1, 99),
+):
+    """Stitch left and right depth TIFFs side by side into a single MP4 video."""
+
+    if not left_depth_paths or not right_depth_paths:
+        raise ValueError("No depth paths provided for stitching.")
+    if len(left_depth_paths) != len(right_depth_paths):
+        raise ValueError("Number of left and right depth maps must be the same.")
+
+    # def load_depth(path):
+    #     path = Path(path)
+    #     img = imageio.imread(path.read_bytes(), format="tiff")
+    #     return img[:, :, :1]  # (H, W, 1)
+
+    # ---- compute global normalization bounds ----
+    all_depths = []
+    for l, r in zip(left_depth_paths, right_depth_paths):
+        all_depths.append(load_depth(l).squeeze(-1).reshape(-1))
+        all_depths.append(load_depth(r).squeeze(-1).reshape(-1))
+    all_depths = np.concatenate(all_depths)
+    d_min, d_max = np.percentile(all_depths, percentile)
+
+    # ---- initialize video writer ----
+    d0 = load_depth(left_depth_paths[0])
+    H, W, _ = d0.shape
+    stereo_width = W * 2
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    video = cv2.VideoWriter(str(output_path), fourcc, fps, (stereo_width, H), isColor=True)
+
+    # ---- write frames ----
+    for l_path, r_path in zip(left_depth_paths, right_depth_paths):
+        l_depth = load_depth(l_path).squeeze(-1)
+        r_depth = load_depth(r_path).squeeze(-1)
+
+        def normalize(depth):
+            depth = np.clip((depth - d_min) / (d_max - d_min), 0.0, 1.0)
+            return (depth * 255).astype(np.uint8)
+
+        l_u8 = normalize(l_depth)
+        r_u8 = normalize(r_depth)
+
+        l_bgr = cv2.cvtColor(l_u8, cv2.COLOR_GRAY2BGR)
+        r_bgr = cv2.cvtColor(r_u8, cv2.COLOR_GRAY2BGR)
+
+        stereo_img = cv2.hconcat([l_bgr, r_bgr])
         video.write(stereo_img)
 
     video.release()
