@@ -11,8 +11,10 @@ def get_intrinsics(metadata):
 
     # viewport resolution scaling
     h, w = metadata['metadata']['resolution']
-    K[0, :] *= w
-    K[1, :] *= h
+    K[0, 0] *= w   # fx
+    K[0, 2] *= w   # cx
+    K[1, 1] *= h   # fy
+    K[1, 2] *= h   # cy
 
     return K.astype(np.float32)
 
@@ -64,14 +66,28 @@ def get_cam_params(metadata):
     }
 
 def pixel2cam(uv_z, K):
+    """
+    We cannot scale by z directly as z is not depth along z-axis, but is instead ray-depth
+    so we assume unit depth for all 3D points in camera coordinate frame, compute the unit vectors,
+    and then scale them by the ray-depth values
+
+    Note: z is ray-depth here (not depth along optical axis)
+    """
+
     fx, fy = K[0, 0], K[1, 1]
     cx, cy = K[0, 2], K[1, 2]
 
-    x = (uv_z[:, :, 0] - cx) * uv_z[:, :, 2] / fx
-    y = (uv_z[:, :, 1] - cy) * uv_z[:, :, 2] / fy
-    z = uv_z[:, :, 2]
+    u, v, z = uv_z[:, :, 0], uv_z[:, :, 1], uv_z[:, :, 2]
 
-    cam_coords = np.stack([x, y, z], axis=-1)  # (H, W, 3)
+    x = (u - cx) / fx
+    y = (v - cy) / fy
+    norm = np.sqrt(x**2 + y**2 + 1)
+
+    X = z * x / norm
+    Y = z * y / norm
+    Z = z / norm
+
+    cam_coords = np.stack([X, Y, Z], axis=-1)
     return cam_coords
 
 def cam2world(cam_coords, E):
@@ -139,9 +155,14 @@ def compute_motion_map(cam_params0: dict[str, np.ndarray],
     p0 = np.stack([u0, v0], axis=-1).reshape(-1, 2) # pixel coordinates
 
     # convert to 3D and bring them to camera frame
-    z = depth0
-    x = (p0[:, 0] - cx) * z / fx
-    y = (p0[:, 1] - cy) * z / fy
+    ray_z = depth0
+    x = (p0[:, 0] - cx) / fx
+    y = (p0[:, 1] - cy) / fy
+    norm = np.sqrt(x**2 + y**2 + 1)
+
+    x = ray_z * x / norm
+    y = ray_z * y / norm
+    z = ray_z / norm
     X0 = np.stack([x, y, z], axis=-1)  #(N, 3)
 
     # if filtering required later in future
@@ -182,6 +203,45 @@ def compute_motion_map(cam_params0: dict[str, np.ndarray],
     dynamic_mask = dynamic_mask.astype(bool)
 
     return dynamic_mask, mag_dynamic_flow
+
+def refine_motion_map(dynamic_map: np.ndarray, 
+                      instance_map: np.ndarray,
+                      low: float=0.05,
+                      high: float=0.15) -> np.ndarray:
+    instance_ids = np.unique(instance_map)
+    instance_score = {}
+
+    for inst_id in instance_ids:
+        if inst_id == 0:  # background
+            continue
+
+        mask = (instance_map == inst_id)
+        if mask.sum() == 0:
+            continue
+
+        ratio = dynamic_map[mask].mean()
+        instance_score[inst_id] = ratio
+
+    instance_is_dynamic = {}
+
+    for inst_id, r in instance_score.items():
+        if r >= high:
+            instance_is_dynamic[inst_id] = True
+        elif r <= low:
+            instance_is_dynamic[inst_id] = False
+        else:
+            # ambiguous: keep previous state or mark static
+            instance_is_dynamic[inst_id] = False
+
+    refined_motion_map = np.zeros_like(dynamic_map, dtype=bool)
+
+    for inst_id, is_dyn in instance_is_dynamic.items():
+        if is_dyn:
+            refined_motion_map |= (instance_map == inst_id)
+    
+    refined_motion_map |= dynamic_map.astype(bool) & (instance_map == 0)
+    return refined_motion_map
+    
 
 def visualize_point_cloud(world_coords: np.ndarray, rgb: np.ndarray = None):
     H, W, _ = world_coords.shape
