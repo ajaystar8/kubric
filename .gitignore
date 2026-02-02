@@ -23,3 +23,4 @@ archives
 stereo_dataset_eval/foundation_models/
 notebooks/
 kubric_generated_data/
+stereo_dataset_workers/movi_e/generate_mac.sh

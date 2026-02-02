@@ -123,10 +123,7 @@ def sample_trajectory_velocity(rng, obj_position, speed_range, trajectory_type=N
     
     types = ['horizontal', 'diagonal', 'rising', 'vertical']
     if trajectory_type is None or trajectory_type not in types:
-        if trajectory_type is not None:
-            print(f"Warning: Unknown trajectory type '{trajectory_type}'. Choosing randomly.")
         trajectory_type = rng.choice(types)
-        print(f"Chose trajectory type: {trajectory_type}")
     
     speed = rng.uniform(speed_range[0], speed_range[1])
     pos = np.array(obj_position)
@@ -140,22 +137,22 @@ def sample_trajectory_velocity(rng, obj_position, speed_range, trajectory_type=N
         # Flatten the toward_center to x-y plane
         horizontal_dir = np.array([toward_center[0], toward_center[1], 0])
         horizontal_dir = horizontal_dir / (np.linalg.norm(horizontal_dir) + 1e-8)
-        return tuple(speed * horizontal_dir + np.array([0, 0, rng.uniform(-1, 1)]))
+        return tuple(speed * horizontal_dir + np.array([0, 0, rng.uniform(-1, 1)])), trajectory_type
     
     elif trajectory_type == 'diagonal':
         # 45-degree-ish entry toward center
         horizontal_dir = np.array([toward_center[0], toward_center[1], 0])
         horizontal_dir = horizontal_dir / (np.linalg.norm(horizontal_dir) + 1e-8)
         # Combine horizontal toward-center with downward z
-        return tuple(speed * 0.7 * horizontal_dir + np.array([0, 0, -speed * 0.7]))
+        return tuple(speed * 0.7 * horizontal_dir + np.array([0, 0, -speed * 0.7])), trajectory_type
     
     elif trajectory_type == 'vertical':
         # Mostly falling/rising but drifting toward center
         drift = 0.2 * speed * toward_center[:2]  # slight x-y drift toward center
-        return (drift[0], drift[1], rng.choice([-1, 1]) * speed)
+        return (drift[0], drift[1], rng.choice([-1, 1]) * speed), trajectory_type
     
     elif trajectory_type == 'rising':
         # Moving upward while heading toward center
         horizontal_dir = np.array([toward_center[0], toward_center[1], 0])
         horizontal_dir = horizontal_dir / (np.linalg.norm(horizontal_dir) + 1e-8)
-        return tuple(speed * 0.5 * horizontal_dir + np.array([0, 0, speed * 0.8]))
+        return tuple(speed * 0.5 * horizontal_dir + np.array([0, 0, speed * 0.8])), trajectory_type

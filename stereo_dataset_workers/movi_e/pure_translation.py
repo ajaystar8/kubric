@@ -29,25 +29,25 @@ from utils import create_rectified_stereo_pair, sample_trajectory_velocity, get_
 import os
 os.environ["KUBRIC_USE_GPU"] = "1"
 
-# Use Cycles
-bpy.context.scene.render.engine = 'CYCLES'
+# # Use Cycles
+# bpy.context.scene.render.engine = 'CYCLES'
 
-# Enable GPU rendering
-bpy.context.scene.cycles.device = 'GPU'
+# # Enable GPU rendering
+# bpy.context.scene.cycles.device = 'GPU'
 
-prefs = bpy.context.preferences.addons['cycles'].preferences
+# prefs = bpy.context.preferences.addons['cycles'].preferences
 
-# THIS is the missing line
-prefs.compute_device_type = 'CUDA'
+# # THIS is the missing line
+# prefs.compute_device_type = 'CUDA'
 
-# Enable all devices
-for d in prefs.devices:
-    d.use = (d.type == 'CUDA')
+# # Enable all devices
+# for d in prefs.devices:
+#     d.use = (d.type == 'CUDA')
 
-print("Compute device type:", prefs.compute_device_type)
-print("Enabled devices:")
-for d in prefs.devices:
-    print(" ", d.name, d.type, d.use)
+# print("Compute device type:", prefs.compute_device_type)
+# print("Enabled devices:")
+# for d in prefs.devices:
+#     print(" ", d.name, d.type, d.use)
 
 
 # --- Some configuration values
@@ -298,9 +298,10 @@ for i in range(num_dynamic_objects):
   kb.move_until_no_overlap(obj, simulator, spawn_region=DYNAMIC_SPAWN_REGION,
                            rng=rng)
   # obj.velocity = (rng.uniform(*VELOCITY_RANGE) - [obj.position[0], obj.position[1], 0])
-  obj.velocity = sample_trajectory_velocity(rng, obj_position=obj.position, speed_range=SPEED_RANGE) # randomly sample trajectory type
+  obj.velocity, velocity_type = sample_trajectory_velocity(rng, obj_position=obj.position, speed_range=SPEED_RANGE) # randomly sample trajectory type
   obj.metadata["is_dynamic"] = True
-  logging.info("    Added %s at %s", obj.asset_id, obj.position)
+  obj.metadata["velocity_type"] = velocity_type
+  logging.info("    Added %s at %s with a %s velocity", obj.asset_id, obj.position, velocity_type)
 
 
 
