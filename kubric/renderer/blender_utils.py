@@ -217,10 +217,16 @@ def read_channels_from_exr(exr: OpenEXR.InputFile, channel_names: Sequence[str])
   return np.stack(outputs, axis=-1)
 
 
+# Replace the get_render_layers_from_exr function in blender_utils.py with this version:
+
 def get_render_layers_from_exr(filename) -> Dict[str, np.ndarray]:
   exr = OpenEXR.InputFile(str(filename))
+  
+  # Get all channel names from the header
+  all_channels = list(exr.header()["channels"].keys())
+  
   layer_names = set()
-  for n, _ in exr.header()["channels"].items():
+  for n in all_channels:
     layer_name, _, _ = n.partition(".")
     layer_names.add(layer_name)
 
@@ -252,7 +258,24 @@ def get_render_layers_from_exr(filename) -> Dict[str, np.ndarray]:
     # range [0, 1]
     output["uv"] = read_channels_from_exr(exr, ["UV.X", "UV.Y", "UV.Z"])
 
-  if "CryptoObject00" in layer_names:
+  # Handle CryptoObject - check for both old and new naming conventions
+  # Blender 4.x uses lowercase channel names (r,g,b,a) instead of uppercase (R,G,B,A)
+  crypto_layers = [n for n in layer_names if "CryptoObject" in n]
+  
+  if not crypto_layers:
+    # Try to find crypto channels with view layer prefix (Blender 4.x style)
+    crypto_channels = [c for c in all_channels if "CryptoObject" in c]
+    if crypto_channels:
+      # Extract unique layer names (e.g., "ViewLayer.CryptoObject00" -> add to crypto_layers)
+      for channel in crypto_channels:
+        # Channel format might be "CryptoObject00.r" or "ViewLayer.CryptoObject00.r"
+        parts = channel.rsplit(".", 1)  # Split from right to get channel letter
+        if len(parts) == 2:
+          layer_name = parts[0]  # e.g., "CryptoObject00"
+          if layer_name not in crypto_layers:
+            crypto_layers.append(layer_name)
+  
+  if crypto_layers:
     # CryptoMatte stores the segmentation of Objects using two kinds of channels:
     #  - index channels (uint32) specify the object index for a pixel
     #  - alpha channels (float32) specify the corresponding mask value
@@ -261,19 +284,42 @@ def get_render_layers_from_exr(filename) -> Dict[str, np.ndarray]:
     # In the EXR this is stored with 2 layers per RGBA image  (CryptoObject00, CryptoObject01, ...)
     # with RG being the first layer and BA being the second
     # So the R and B channels are uint32 and the G and A channels are float32.
-    crypto_layers = [n for n in layer_names if n.startswith("CryptoObject")]
+    
+    # Sort to ensure consistent ordering
+    crypto_layers = sorted(crypto_layers, key=lambda x: x.split("CryptoObject")[-1])
+    
+    # Try uppercase first (Blender 3.x), then lowercase (Blender 4.x)
     index_channels = [n + "." + c for n in crypto_layers for c in "RB"]
-    idxs = read_channels_from_exr(exr, index_channels)
-    idxs.dtype = np.uint32
-    output["segmentation_indices"] = idxs
-    alpha_channels = [n + "." + c for n in crypto_layers for c in "GA"]
-    alphas = read_channels_from_exr(exr, alpha_channels)
-    output["segmentation_alphas"] = alphas
+    existing_index_channels = [c for c in index_channels if c in all_channels]
+    
+    if not existing_index_channels:
+      # Try lowercase (Blender 4.x style)
+      index_channels = [n + "." + c for n in crypto_layers for c in "rb"]
+      existing_index_channels = [c for c in index_channels if c in all_channels]
+    
+    if existing_index_channels:
+      idxs = read_channels_from_exr(exr, existing_index_channels)
+      idxs.dtype = np.uint32
+      output["segmentation_indices"] = idxs
+      
+      # Try uppercase first, then lowercase for alpha channels
+      alpha_channels = [n + "." + c for n in crypto_layers for c in "GA"]
+      existing_alpha_channels = [c for c in alpha_channels if c in all_channels]
+      
+      if not existing_alpha_channels:
+        # Try lowercase (Blender 4.x style)
+        alpha_channels = [n + "." + c for n in crypto_layers for c in "ga"]
+        existing_alpha_channels = [c for c in alpha_channels if c in all_channels]
+      
+      if existing_alpha_channels:
+        alphas = read_channels_from_exr(exr, existing_alpha_channels)
+        output["segmentation_alphas"] = alphas
+
   if "ObjectCoordinates" in layer_names:
     output["object_coordinates"] = read_channels_from_exr(exr,
       ["ObjectCoordinates.R", "ObjectCoordinates.G", "ObjectCoordinates.B"])
+  
   return output
-
 
 def replace_cryptomatte_hashes_by_asset_index(
     segmentation_ids: ArrayLike,

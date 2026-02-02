@@ -1,4 +1,6 @@
 #!/bin/bash
+# Using Blender 4.4 with CUDA 12.9 for RTX 5090 (sm_120 Blackwell) support
+
 set -e # exit on error
 
 ######################### SETUP ############################
@@ -14,13 +16,13 @@ max_camera_movement=8.0   # maximum camera movement in meters over the whole seq
 camera_movement="linear_movement" # ("linear_movement" or "linear_movement_linear_lookat") - valid only for "lookat_orbit" stereo type
 
 # Scene Parameters
-min_num_static_objects=10
-max_num_static_objects=15
-min_num_dynamic_objects=3
-max_num_dynamic_objects=5
+min_num_static_objects=5
+max_num_static_objects=8
+min_num_dynamic_objects=5
+max_num_dynamic_objects=8
 
 # Video Generation Parameters
-video_duration=10 # in seconds
+video_duration=2 # in seconds
 frame_rate=12  # frames per second
 
 frame_end=$((frame_rate * video_duration))  # total number of frames
@@ -30,7 +32,7 @@ echo "Generating videos of length ${video_duration}s @ ${frame_rate} FPS..."
 resolution=512x512 # (512x512 or 256x256) (can be something else, but these are the tested ones)
 
 # General Settings
-num_sequences=10 # total number of sequences to generate
+num_sequences=1 # total number of sequences to generate
 
 ##################################################################
 
@@ -53,6 +55,7 @@ else
   echo "Generating ${num_sequences} Stereo-MOVi-E sequences (stereo_type: ${stereo_type}) (${start} to ${end})..."
 fi
 
+SECONDS=0
 for i in $(seq ${start} ${end})
 do
     # ensure output directory exists
@@ -67,9 +70,10 @@ do
             -e TMPDIR=/mnt/Data/rajendra/tmp \
             -e TEMP=/mnt/Data/rajendra/tmp \
             -e TMP=/mnt/Data/rajendra/tmp \
+            -e HOME=/tmp \
             --volume /mnt/Data/rajendra:/mnt/Data/rajendra \
             --volume "$(pwd):/kubric"   \
-            kubricdockerhub/kubruntu    \
+            kubricdockerhub/kubruntu:v4.4-cuda12.9 \
             /usr/bin/python3 stereo_dataset_workers/movi_e/pure_translation.py \
             --min_num_static_objects=${min_num_static_objects} \
             --max_num_static_objects=${max_num_static_objects} \
@@ -92,7 +96,7 @@ do
             --env KUBRIC_USE_GPU=1 \
             --user $(id -u):$(id -g)    \
             --volume "$(pwd):/kubric"   \
-            kubricdockerhub/kubruntu    \
+            kubricdockerhub/kubruntu:v4.4-cuda12.9    \
             /usr/bin/python3 stereo_dataset_workers/movi_e/lookat_orbit.py \
             --min_num_static_objects=${min_num_static_objects} \
             --max_num_static_objects=${max_num_static_objects} \
@@ -114,5 +118,6 @@ do
    
 done
 
+echo "Total time taken = $((SECONDS/3600))h $((SECONDS%3600/60))m $((SECONDS%60))s"
 echo "All ${num_sequences} sequences generated in ${root_out_dir}."
 echo "Done."
