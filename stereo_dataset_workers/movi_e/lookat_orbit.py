@@ -25,30 +25,43 @@ from kubric.simulator import PyBullet
 from kubric.renderer import Blender
 import numpy as np
 
-from utils import create_rectified_stereo_pair, get_stereo_camera_pose
+from utils import create_rectified_stereo_pair, sample_trajectory_velocity, get_stereo_camera_pose
 
 import os
-os.environ["KUBRIC_USE_GPU"] = "1"
 
-# Use Cycles
-bpy.context.scene.render.engine = 'CYCLES'
+def cuda_available():
+  import subprocess
+  try:
+      subprocess.run(['nvidia-smi'], capture_output=True, check=True)
+      return True
+  except (subprocess.CalledProcessError, FileNotFoundError):
+      return False
 
-# Enable GPU rendering
-bpy.context.scene.cycles.device = 'GPU'
+if cuda_available():
 
-prefs = bpy.context.preferences.addons['cycles'].preferences
+  os.environ["KUBRIC_USE_GPU"] = "1"
 
-# THIS is the missing line
-prefs.compute_device_type = 'CUDA'
+  # Use Cycles
+  bpy.context.scene.render.engine = 'CYCLES'
 
-# Enable all devices
-for d in prefs.devices:
-    d.use = (d.type == 'CUDA')
+  # Enable GPU rendering
+  bpy.context.scene.cycles.device = 'GPU'
+  prefs = bpy.context.preferences.addons['cycles'].preferences
 
-print("Compute device type:", prefs.compute_device_type)
-print("Enabled devices:")
-for d in prefs.devices:
-    print(" ", d.name, d.type, d.use)
+  # THIS is the missing line
+  prefs.compute_device_type = 'CUDA'
+
+  # Enable all devices
+  for d in prefs.devices:
+      d.use = (d.type == 'CUDA')
+
+  print("Compute device type:", prefs.compute_device_type)
+  print("Enabled devices:")
+  for d in prefs.devices:
+      print(" ", d.name, d.type, d.use)
+
+else:
+  print("CUDA not available. Using CPU for rendering.")
 
 
 # --- Some configuration values
@@ -56,6 +69,7 @@ for d in prefs.devices:
 STATIC_SPAWN_REGION = [(-7, -7, 0), (7, 7, 10)]
 DYNAMIC_SPAWN_REGION = [(-5, -5, 1), (5, 5, 5)]
 VELOCITY_RANGE = [(-4., -4., 0.), (4., 4., 0.)]
+SPEED_RANGE = (4., 12.)
 
 # --- CLI arguments
 parser = kb.ArgumentParser()
@@ -330,10 +344,11 @@ for i in range(num_dynamic_objects):
   scene += obj
   kb.move_until_no_overlap(obj, simulator, spawn_region=DYNAMIC_SPAWN_REGION,
                            rng=rng)
-  obj.velocity = (rng.uniform(*VELOCITY_RANGE) -
-                  [obj.position[0], obj.position[1], 0])
+  # obj.velocity = (rng.uniform(*VELOCITY_RANGE) - [obj.position[0], obj.position[1], 0])
+  obj.velocity, velocity_type = sample_trajectory_velocity(rng, obj_position=obj.position, speed_range=SPEED_RANGE) # randomly sample trajectory type
   obj.metadata["is_dynamic"] = True
-  logging.info("    Added %s at %s", obj.asset_id, obj.position)
+  obj.metadata["velocity_type"] = velocity_type
+  logging.info("    Added %s at %s with a %s velocity", obj.asset_id, obj.position, velocity_type)
 
 
 

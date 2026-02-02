@@ -71,7 +71,7 @@ do
             -e TMP=/mnt/Data/rajendra/tmp \
             --volume /mnt/Data/rajendra:/mnt/Data/rajendra \
             --volume "$(pwd):/kubric"   \
-            kubricdockerhub/kubruntu    \
+            kubricdockerhub/kubruntu:v3.6-cuda11.8    \
             /usr/bin/python3 stereo_dataset_workers/movi_e/pure_translation.py \
             --min_num_static_objects=${min_num_static_objects} \
             --max_num_static_objects=${max_num_static_objects} \
@@ -93,8 +93,12 @@ do
             --gpus all \
             --env KUBRIC_USE_GPU=1 \
             --user $(id -u):$(id -g)    \
+            -e TMPDIR=/mnt/Data/rajendra/tmp \
+            -e TEMP=/mnt/Data/rajendra/tmp \
+            -e TMP=/mnt/Data/rajendra/tmp \
+            --volume /mnt/Data/rajendra:/mnt/Data/rajendra \
             --volume "$(pwd):/kubric"   \
-            kubricdockerhub/kubruntu    \
+            kubricdockerhub/kubruntu:v3.6-cuda11.8    \
             /usr/bin/python3 stereo_dataset_workers/movi_e/lookat_orbit.py \
             --min_num_static_objects=${min_num_static_objects} \
             --max_num_static_objects=${max_num_static_objects} \

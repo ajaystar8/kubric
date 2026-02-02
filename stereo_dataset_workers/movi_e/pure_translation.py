@@ -27,28 +27,40 @@ import numpy as np
 
 from utils import create_rectified_stereo_pair, sample_trajectory_velocity, get_stereo_camera_positions
 import os
-os.environ["KUBRIC_USE_GPU"] = "1"
 
-# # Use Cycles
-# bpy.context.scene.render.engine = 'CYCLES'
+def cuda_available():
+  import subprocess
+  try:
+      subprocess.run(['nvidia-smi'], capture_output=True, check=True)
+      return True
+  except (subprocess.CalledProcessError, FileNotFoundError):
+      return False
 
-# # Enable GPU rendering
-# bpy.context.scene.cycles.device = 'GPU'
+if cuda_available():
 
-# prefs = bpy.context.preferences.addons['cycles'].preferences
+  os.environ["KUBRIC_USE_GPU"] = "1"
 
-# # THIS is the missing line
-# prefs.compute_device_type = 'CUDA'
+  # Use Cycles
+  bpy.context.scene.render.engine = 'CYCLES'
 
-# # Enable all devices
-# for d in prefs.devices:
-#     d.use = (d.type == 'CUDA')
+  # Enable GPU rendering
+  bpy.context.scene.cycles.device = 'GPU'
+  prefs = bpy.context.preferences.addons['cycles'].preferences
 
-# print("Compute device type:", prefs.compute_device_type)
-# print("Enabled devices:")
-# for d in prefs.devices:
-#     print(" ", d.name, d.type, d.use)
+  # THIS is the missing line
+  prefs.compute_device_type = 'CUDA'
 
+  # Enable all devices
+  for d in prefs.devices:
+      d.use = (d.type == 'CUDA')
+
+  print("Compute device type:", prefs.compute_device_type)
+  print("Enabled devices:")
+  for d in prefs.devices:
+      print(" ", d.name, d.type, d.use)
+
+else:
+  print("CUDA not available. Using CPU for rendering.")
 
 # --- Some configuration values
 # the region in which to place objects [(min), (max)]

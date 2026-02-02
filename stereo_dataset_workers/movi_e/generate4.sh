@@ -92,9 +92,14 @@ do
             --scratch_dir "/mnt/Data/rajendra/tmp"
     else
           docker run --rm --interactive \
-            --gpus all \
+           --gpus all \
             --env KUBRIC_USE_GPU=1 \
             --user $(id -u):$(id -g)    \
+            -e TMPDIR=/mnt/Data/rajendra/tmp \
+            -e TEMP=/mnt/Data/rajendra/tmp \
+            -e TMP=/mnt/Data/rajendra/tmp \
+            -e HOME=/tmp \
+            --volume /mnt/Data/rajendra:/mnt/Data/rajendra \
             --volume "$(pwd):/kubric"   \
             kubricdockerhub/kubruntu:v4.4-cuda12.9    \
             /usr/bin/python3 stereo_dataset_workers/movi_e/lookat_orbit.py \
