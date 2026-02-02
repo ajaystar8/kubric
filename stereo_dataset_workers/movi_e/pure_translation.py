@@ -25,7 +25,7 @@ from kubric.simulator import PyBullet
 from kubric.renderer import Blender
 import numpy as np
 
-from utils import create_rectified_stereo_pair, get_stereo_camera_pose, get_stereo_camera_positions
+from utils import create_rectified_stereo_pair, sample_trajectory_velocity, get_stereo_camera_positions
 import os
 os.environ["KUBRIC_USE_GPU"] = "1"
 
@@ -53,8 +53,9 @@ for d in prefs.devices:
 # --- Some configuration values
 # the region in which to place objects [(min), (max)]
 STATIC_SPAWN_REGION = [(-7, -7, 0), (7, 7, 10)]
-DYNAMIC_SPAWN_REGION = [(-5, -5, 1), (5, 5, 5)]
+DYNAMIC_SPAWN_REGION = [(-5, -5, 1), (5, 5, 5)] 
 VELOCITY_RANGE = [(-4., -4., 0.), (4., 4., 0.)]
+SPEED_RANGE = (4., 12.)
 
 # --- CLI arguments
 parser = kb.ArgumentParser()
@@ -140,7 +141,7 @@ texture_node.image = bpy.data.images.load(background_hdri.filename)
 
 
 def get_linear_camera_motion_start_end(
-    movement_speed: float,
+    movement_speed: float, # basically the total distance moved by the camera
     inner_radius: float = 8.,
     outer_radius: float = 12.,
     z_offset: float = 0.1,
@@ -296,8 +297,8 @@ for i in range(num_dynamic_objects):
   scene += obj
   kb.move_until_no_overlap(obj, simulator, spawn_region=DYNAMIC_SPAWN_REGION,
                            rng=rng)
-  obj.velocity = (rng.uniform(*VELOCITY_RANGE) -
-                  [obj.position[0], obj.position[1], 0])
+  # obj.velocity = (rng.uniform(*VELOCITY_RANGE) - [obj.position[0], obj.position[1], 0])
+  obj.velocity = sample_trajectory_velocity(rng, obj_position=obj.position, speed_range=SPEED_RANGE) # randomly sample trajectory type
   obj.metadata["is_dynamic"] = True
   logging.info("    Added %s at %s", obj.asset_id, obj.position)
 
