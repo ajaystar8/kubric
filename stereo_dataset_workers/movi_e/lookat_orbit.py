@@ -93,6 +93,7 @@ parser.add_argument("--backgrounds_split", choices=["train", "test"],
 # Camera configuration
 parser.add_argument("--camera", choices=["fixed_random", "linear_movement", "linear_movement_linear_lookat"],
                     default="fixed_random")
+parser.add_argument('--min_camera_movement', type=float, default=0.0)
 parser.add_argument("--max_camera_movement", type=float, default=4.0)
 parser.add_argument("--max_motion_blur", type=float, default=0.0)
 parser.add_argument("--focal_length", type=float, default=35.0)
@@ -235,7 +236,7 @@ elif (
   is_panning = FLAGS.camera == "linear_movement_linear_lookat"
   camera_inner_radius = 6.0 if is_panning else 8.0
   camera_start, camera_end = get_linear_camera_motion_start_end(
-      movement_speed=rng.uniform(low=0., high=FLAGS.max_camera_movement)
+      movement_speed=rng.uniform(low=FLAGS.min_camera_movement, high=FLAGS.max_camera_movement)
   )
   if is_panning:
     lookat_start, lookat_end = get_linear_lookat_motion_start_end()
