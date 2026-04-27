@@ -1,5 +1,12 @@
 #!/bin/bash
 # Using Blender 4.4 with CUDA 12.9 for RTX 5090 (sm_120 Blackwell) support
+#
+# Generates Stereo-MOVi-E sequences via a Kubric Docker container. Supports two
+# stereo types: `pure_translation` (fixed-orientation linear rig motion) and
+# `lookat_orbit` (rig translates while looking at a target, with optional
+# simultaneous lookat pan via `camera_movement`). Sequences are numbered
+# auto-incrementally in ./generation/stereo_datasets/movi_e/<stereo_type>/[<camera_movement>/].
+# Edit the SETUP block to configure camera, scene, and rendering parameters.
 
 set -e # exit on error
 

@@ -13,7 +13,54 @@
 # limitations under the License.
 
 """
+Kubric scene generator for stereo dataset sequences with pure translational
+camera motion (MOVi-E variant).
 
+Renders a physically simulated scene from a rectified stereo camera pair that
+undergoes linear translation (no rotation) between two sampled positions. The
+scene contains GSO objects on a domed HDRI background, split into static
+distractors and dynamic (tossed) foreground objects.
+
+Pipeline overview:
+  1. **GPU check** — if ``nvidia-smi`` is available, enables CYCLES GPU
+     rendering via CUDA; falls back to CPU otherwise.
+  2. **Scene setup** — initialises a Kubric scene, PyBullet simulator, and
+     Blender renderer (64 samples/pixel, optional motion blur).
+  3. **Background** — randomly selects an HDRI from the train or test split and
+     applies it as both ambient lighting and dome texture.
+  4. **Stereo camera rig** — samples a linear start→end translation path inside
+     a half-sphere shell, then creates a rectified left/right camera pair with a
+     fixed orientation (quaternion) and configures per-frame keyframes so the
+     rig translates smoothly with a fixed baseline. Baseline and orientation are
+     asserted each frame to catch any rig drift.
+  5. **Static objects** — places 10–20 randomly scaled GSO objects using
+     ``move_until_no_overlap``, runs a 100-frame pre-simulation to let them
+     settle, then freezes their velocities.
+  6. **Dynamic objects** — places 1–3 GSO objects with velocities sampled via
+     ``sample_trajectory_velocity`` (random trajectory type: e.g. straight,
+     arc, etc.).
+  7. **Simulation** — runs PyBullet for the full frame range to animate dynamic
+     objects.
+  8. **Rendering** — renders each camera independently and writes per-frame
+     outputs (RGB, RGBA, depth, UV, normals, forward/backward flow,
+     segmentation, object coordinates) under
+     ``<output_dir>/<camera_name>/<modality>/``.
+  9. **Metadata** — writes per-camera JSON files for scene/camera/instance
+     metadata and collision events.
+
+CLI arguments (extends ``kb.ArgumentParser`` defaults):
+    --objects_split             GSO asset split to use (``train``/``test``).
+    --min/max_num_static_objects  Number of static distractor objects (10–20).
+    --min/max_num_dynamic_objects Number of dynamic objects (1–3).
+    --floor_friction/restitution  Physical properties of the dome floor.
+    --backgrounds_split         HDRI split to use (``train``/``test``).
+    --min/max_camera_movement   Range for total camera translation distance.
+    --max_motion_blur           Upper bound for motion blur strength (0 = off).
+    --focal_length              Camera focal length in mm (default: 35).
+    --sensor_width              Sensor width in mm (default: 32).
+    --baseline                  Stereo baseline in metres (default: 0.54).
+    --kubasic/hdri/gso_assets   GCS manifest URIs for asset sources.
+    --save_state                If set, saves ``.bullet`` and ``.blend`` states.
 """
 
 import time

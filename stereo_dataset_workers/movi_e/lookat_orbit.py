@@ -13,7 +13,61 @@
 # limitations under the License.
 
 """
+Kubric scene generator for stereo dataset sequences with look-at-based camera
+motion (MOVi-E variant).
 
+Unlike ``pure_translation.py`` (which keeps orientation fixed), this script
+supports three camera motion modes that vary both position and the look-at
+target, enabling richer viewpoint variation including orbiting and panning.
+
+Pipeline overview:
+  1. **GPU check** — enables CYCLES GPU/CUDA rendering if ``nvidia-smi`` is
+     available; falls back to CPU.
+  2. **Scene setup** — initialises a Kubric scene, PyBullet simulator, and
+     Blender renderer (64 samples/pixel, optional motion blur).
+  3. **Background** — randomly selects an HDRI from the train/test split,
+     applies it as ambient lighting and dome texture.
+  4. **Stereo camera rig** — one of three modes, selected via ``--camera``:
+       - ``fixed_random``: places the rig at a fixed random position on a
+         half-sphere shell (radii 7–9), always looking at the origin. No
+         per-frame keyframes needed.
+       - ``linear_movement``: translates the rig linearly between two sampled
+         positions while always looking at the origin. Per-frame position and
+         quaternion keyframes are inserted.
+       - ``linear_movement_linear_lookat``: translates the rig linearly while
+         simultaneously panning the look-at target along a separate linear path
+         through the workspace center, producing a combined dolly+pan motion.
+     All moving-rig modes recompute the stereo orientation via
+     ``get_stereo_camera_pose`` each frame and assert that the baseline
+     distance and shared quaternion invariants are maintained.
+  5. **Static objects** — places 10–20 randomly scaled GSO objects, runs a
+     100-frame pre-simulation to settle them, then freezes their velocities.
+  6. **Dynamic objects** — places 1–3 GSO objects with velocities sampled via
+     ``sample_trajectory_velocity`` (random trajectory type).
+  7. **Simulation** — runs PyBullet for the full frame range.
+  8. **Rendering** — renders each camera independently and writes per-frame
+     outputs (RGB, RGBA, depth, UV, normals, forward/backward flow,
+     segmentation, object coordinates) under
+     ``<output_dir>/<camera_name>/<modality>/``.
+  9. **Metadata** — writes per-camera JSON files for scene/camera/instance
+     metadata and collision events.
+
+CLI arguments (extends ``kb.ArgumentParser`` defaults):
+    --objects_split             GSO asset split (``train``/``test``).
+    --min/max_num_static_objects  Number of static distractor objects (10–20).
+    --min/max_num_dynamic_objects Number of dynamic objects (1–3).
+    --floor_friction/restitution  Physical properties of the dome floor.
+    --backgrounds_split         HDRI split (``train``/``test``).
+    --camera                    Motion mode: ``fixed_random``,
+                                ``linear_movement``, or
+                                ``linear_movement_linear_lookat``.
+    --min/max_camera_movement   Range for total camera translation distance.
+    --max_motion_blur           Upper bound for motion blur strength (0 = off).
+    --focal_length              Camera focal length in mm (default: 35).
+    --sensor_width              Sensor width in mm (default: 32).
+    --baseline                  Stereo baseline in metres (default: 0.54).
+    --kubasic/hdri/gso_assets   GCS manifest URIs for asset sources.
+    --save_state                If set, saves ``.bullet`` and ``.blend`` states.
 """
 
 import time

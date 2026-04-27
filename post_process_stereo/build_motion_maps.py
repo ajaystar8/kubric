@@ -1,3 +1,41 @@
+"""
+Generates per-frame dynamic object masks and dynamic flow magnitude maps for
+both cameras in a stereo sequence, using depth maps, optical flow, and camera
+extrinsics to separate scene motion caused by camera movement from motion caused
+by independently moving objects.
+
+For each consecutive frame pair, the script:
+  1. Loads depth, forward flow (frame i), and backward flow (frame i+1).
+  2. Uses the camera intrinsics (K) and extrinsics (E) to compute the expected
+     camera-induced optical flow via ``compute_motion_map``, then compares it
+     against the observed flow to isolate dynamic (non-static) regions.
+  3. Optionally refines the binary dynamic mask using instance segmentation maps
+     (``--refine``) to snap mask boundaries to object contours.
+  4. Saves each binary mask as ``dynamic_mask_NNNNN.png`` (0/255 uint8) and a
+     plasma-colormap visualization of the dynamic flow magnitude as
+     ``dynamic_flow_NNNNN.png`` under ``<seq_dir>/<camera>/dynamic_masks/`` and
+     ``<seq_dir>/<camera>/dynamic_flows/``, respectively.
+
+Optionally (``--stitch_video``), stitches left/right results into side-by-side
+stereo MP4 videos at 12 fps for: dynamic masks, dynamic flows, RGBA frames,
+forward flow, and depth maps.
+
+Usage:
+    python build_motion_maps.py --seq_dir <path> [--threshold <float>]
+                                [--refine] [--stitch_video]
+
+Arguments:
+    --seq_dir       Root directory of the sequence; must contain
+                    ``left_camera/`` and ``right_camera/`` subdirectories with
+                    depth, forward_flow, backward_flow, segmentation, and
+                    metadata files.
+    --threshold     Motion magnitude threshold for classifying a pixel as
+                    dynamic (default: 1).
+    --refine        If set, refines motion masks using instance segmentation.
+    --stitch_video  If set, produces stereo side-by-side MP4 videos after
+                    processing.
+"""
+
 import os
 import os.path as osp
 import argparse
