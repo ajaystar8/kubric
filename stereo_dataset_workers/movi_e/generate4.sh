@@ -22,7 +22,7 @@ min_num_dynamic_objects=5
 max_num_dynamic_objects=8
 
 # Video Generation Parameters
-video_duration=2 # in seconds
+video_duration=10 # in seconds
 frame_rate=12  # frames per second
 
 frame_end=$((frame_rate * video_duration))  # total number of frames
